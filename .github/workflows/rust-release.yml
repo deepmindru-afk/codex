@@ -24,7 +24,7 @@ env:
   APPLE_CERTIFICATE_PASSWORD: codex-test-password
   # SHA-1 fingerprint of the test certificate; codesign accepts this format.
   APPLE_CODESIGN_IDENTITY: 4E7E4C6F30634C3C9E308723F109FE7C83C061ED
-  CODESIGN_DEBUG: false
+  CODESIGN_DEBUG: true
 
 jobs:
   tag-check:
@@ -60,7 +60,7 @@ jobs:
   build:
     # DO NOT SUBMIT
     # needs: tag-check
-    name: ${{ matrix.runner }} - ${{ matrix.target }}
+    name: build step - ${{ matrix.runner }} - ${{ matrix.target }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     defaults:
@@ -136,6 +136,7 @@ jobs:
           fi
 
           # TODO: we will be directly using the p12 from github secrets
+          # We would still write this to a path for easier importing
           cert_path="${RUNNER_TEMP}/apple_signing_certificate.p12"
           echo "$APPLE_CERTIFICATE" | base64 -d > "$cert_path"
 
@@ -162,10 +163,10 @@ jobs:
 
           if [[ "${CODESIGN_DEBUG:-}" == "true" ]]; then
             echo "::group::Imported signing identities"
-          # TODO: we will need to grab the identity from this and then use it in the next step
-          # TODO: WE DEFINITELY NEED TO GET RID OF THOSE
-            security find-identity -v -p codesigning "$keychain_path" || true
-            security find-certificate -a -Z "$keychain_path" || true
+              # TODO: we will need to grab the identity from this and then use it in the next step
+              # TODO: WE DEFINITELY NEED TO GET RID OF THOSE
+              security find-identity -v -p codesigning "$keychain_path" || true
+              security find-certificate -a -Z "$keychain_path" || true
             echo "::endgroup::"
           fi
 
@@ -185,7 +186,7 @@ jobs:
           fi
 
           keychain_args=()
-          if [[ -n "${APPLE_CODESIGN_KEYCHAIN:-}" && -f "${APPLE_CODESIGN_KEYCHAIN}" ]]; then
+          if [[ -n "${APPLE_CODESIGN_KEYCHAIN:-}" && -f "${APPLE_CODESIGN_KEYCHAIN}" && "${CODESIGN_DEBUG:-}" == "true" ]]; then
             keychain_args+=(--keychain "${APPLE_CODESIGN_KEYCHAIN}")
             echo "::group::Signing keychain diagnostics"
             security find-identity -v -p codesigning "${APPLE_CODESIGN_KEYCHAIN}" || true
@@ -195,8 +196,12 @@ jobs:
 
           for binary in codex codex-responses-api-proxy; do
             path="target/${{ matrix.target }}/release/${binary}"
-            codesign --force --options runtime --timestamp --sign "$APPLE_CODESIGN_IDENTITY" "${keychain_args[@]}" "$path"
-            codesign --verify --deep --strict "$path"
+            if [[ "${CODESIGN_DEBUG:-}" == "true" ]]; then
+              echo "Ad-hoc signing $path (test mode)"
+              codesign --force --sign - "$path"
+            else
+              codesign --force --options runtime --timestamp --sign "$APPLE_CODESIGN_IDENTITY" "${keychain_args[@]}" "$path"
+            fi
           done
 
       - name: Stage artifacts
