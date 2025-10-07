@@ -136,8 +136,8 @@ jobs:
           fi
 
           # TODO: we will be directly using the p12 from github secrets
-          # cert_path="${RUNNER_TEMP}/apple_signing_certificate.p12"
-          # echo "$APPLE_CERTIFICATE" | base64 -d > "$cert_path"
+          cert_path="${RUNNER_TEMP}/apple_signing_certificate.p12"
+          echo "$APPLE_CERTIFICATE" | base64 -d > "$cert_path"
 
           keychain_path="${RUNNER_TEMP}/codex-signing.keychain-db"
           security create-keychain -p "$KEYCHAIN_PASSWORD" "$keychain_path"
